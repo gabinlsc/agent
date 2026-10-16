@@ -50,13 +50,13 @@ def list_dir(path: str = ".") -> str:
 
 
 def read_file(path: str) -> str:
-    return Path(path).read_text()[:50_000]
+    return Path(path).read_text(encoding="utf-8", errors="replace")[:50_000]
 
 
 def write_file(path: str, content: str) -> str:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(content)
+    p.write_text(content, encoding="utf-8")
     return f"{len(content)} caractères écrits dans {path}"
 
 
@@ -77,7 +77,7 @@ def make_run_bash(approve: Callable[[str], bool]) -> Callable[[str], str]:
     def run_bash(command: str) -> str:
         if not approve(command):
             return "Refusé par l'utilisateur."
-        r = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=60)
+        r = subprocess.run(command, shell=True, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
         return (r.stdout + r.stderr)[-10_000:] or f"(code retour {r.returncode})"
 
     return run_bash

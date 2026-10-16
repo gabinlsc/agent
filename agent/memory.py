@@ -18,12 +18,12 @@ REMEMBER_TOOL = make_tool(
 
 
 def load_notes(path: Path = NOTES) -> str:
-    return path.read_text().strip() if path.exists() else ""
+    return path.read_text(encoding="utf-8").strip() if path.exists() else ""
 
 
 def remember(note: str, path: Path = NOTES) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a") as f:
+    with path.open("a", encoding="utf-8") as f:
         f.write(f"- {note.strip()}\n")
     return "Noté."
 
@@ -37,8 +37,8 @@ def system_with_memory(base: str, path: Path = NOTES) -> str:
 
 def save_session(messages: list, path: Path = SESSION) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(messages, ensure_ascii=False))
+    path.write_text(json.dumps(messages, ensure_ascii=False), encoding="utf-8")
 
 
 def load_session(path: Path = SESSION) -> list:
-    return json.loads(path.read_text()) if path.exists() else []
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
