@@ -17,6 +17,15 @@ python -m agent.web   # http://127.0.0.1:8000
 
 Chat en streaming dans le navigateur. `run_bash` y est désactivé (pas d'approbation possible).
 
+## Évaluations
+
+```bash
+python -m evals                 # tous les cas, 1 passage chacun
+python -m evals --runs 3 -k bug # répéter un cas (le LLM est non déterministe)
+```
+
+Chaque cas tourne dans un dossier temporaire, avec une vérification automatique (fichier créé, bug corrigé, réponse correcte…). Le bash y est toujours refusé. Les appels API sont réels (donc payants) : lance-les avant/après un changement de prompt ou d'outil pour savoir si ça aide.
+
 ## Mémoire
 
 - L'outil `remember` ajoute des notes durables dans `.agent/memory.md`, relues au démarrage suivant (`/memoire` pour les afficher).
@@ -31,4 +40,5 @@ Chat en streaming dans le navigateur. `run_bash` y est désactivé (pas d'approb
 - `agent/subagent.py` : outil `delegate` — un sous-agent en lecture seule, au contexte vierge, qui rend un compte rendu
 - `agent/web.py` : interface web (FastAPI, SSE)
 - `agent/cli.py` : interface terminal
+- `evals/` : cas d'évaluation et runner (`python -m evals`)
 - `tests/` : tests unitaires avec un faux client (aucun appel réseau) — `pytest`
