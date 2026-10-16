@@ -1,37 +1,47 @@
-"""Outils locaux : une définition (schéma JSON) + une fonction Python chacun."""
+"""Outils locaux : une définition (format OpenAI) + une fonction Python chacun."""
+import re
 import subprocess
+import urllib.request
 from pathlib import Path
 from typing import Callable
 
+
+def make_tool(name: str, description: str, properties: dict, required: tuple = ()) -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {"type": "object", "properties": properties, "required": list(required)},
+        },
+    }
+
+
+def tool_name(tool: dict) -> str:
+    return tool["function"]["name"]
+
+
 TOOLS = [
-    {
-        "name": "list_dir",
-        "description": "Liste le contenu d'un dossier.",
-        "input_schema": {
-            "type": "object",
-            "properties": {"path": {"type": "string", "description": "Dossier, '.' par défaut"}},
-            "required": [],
-        },
-    },
-    {
-        "name": "read_file",
-        "description": "Lit un fichier texte et renvoie son contenu.",
-        "input_schema": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]},
-    },
-    {
-        "name": "write_file",
-        "description": "Crée ou écrase un fichier avec le contenu donné.",
-        "input_schema": {
-            "type": "object",
-            "properties": {"path": {"type": "string"}, "content": {"type": "string"}},
-            "required": ["path", "content"],
-        },
-    },
-    {
-        "name": "run_bash",
-        "description": "Exécute une commande shell (l'utilisateur doit l'approuver).",
-        "input_schema": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]},
-    },
+    make_tool("list_dir", "Liste le contenu d'un dossier.", {"path": {"type": "string", "description": "Dossier, '.' par défaut"}}),
+    make_tool("read_file", "Lit un fichier texte et renvoie son contenu.", {"path": {"type": "string"}}, ("path",)),
+    make_tool(
+        "write_file",
+        "Crée ou écrase un fichier avec le contenu donné.",
+        {"path": {"type": "string"}, "content": {"type": "string"}},
+        ("path", "content"),
+    ),
+    make_tool(
+        "run_bash",
+        "Exécute une commande shell (l'utilisateur doit l'approuver).",
+        {"command": {"type": "string"}},
+        ("command",),
+    ),
+    make_tool(
+        "fetch_url",
+        "Télécharge une page web (http/https) et renvoie son texte brut.",
+        {"url": {"type": "string"}},
+        ("url",),
+    ),
 ]
 
 
@@ -48,6 +58,17 @@ def write_file(path: str, content: str) -> str:
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(content)
     return f"{len(content)} caractères écrits dans {path}"
+
+
+def fetch_url(url: str) -> str:
+    if not url.startswith(("http://", "https://")):
+        raise ValueError("seules les URL http(s) sont acceptées")
+    req = urllib.request.Request(url, headers={"User-Agent": "agent/1.0"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        html = r.read(500_000).decode("utf-8", errors="replace")
+    html = re.sub(r"(?is)<(script|style).*?</\1>", " ", html)
+    text = re.sub(r"(?s)<[^>]+>", " ", html)
+    return re.sub(r"\s+", " ", text).strip()[:20_000]
 
 
 def make_run_bash(approve: Callable[[str], bool]) -> Callable[[str], str]:
@@ -67,5 +88,6 @@ def default_handlers(approve: Callable[[str], bool]) -> dict[str, Callable[..., 
         "list_dir": list_dir,
         "read_file": read_file,
         "write_file": write_file,
+        "fetch_url": fetch_url,
         "run_bash": make_run_bash(approve),
     }

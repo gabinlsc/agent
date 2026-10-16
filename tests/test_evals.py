@@ -2,7 +2,7 @@ import os
 
 from evals.cases import CASES
 from evals.runner import run_case
-from tests.fakes import FakeClient, text, tool_use
+from tests.fakes import FakeClient, call, reply
 
 
 def case(name):
@@ -12,8 +12,8 @@ def case(name):
 def test_passing_case_and_cwd_restored():
     before = os.getcwd()
     client = FakeClient([
-        ([tool_use("t1", "write_file", path="hello.txt", content="bonjour")], "tool_use"),
-        ([text("fait")], "end_turn"),
+        reply(None, call("t1", "write_file", path="hello.txt", content="bonjour")),
+        reply("fait"),
     ])
     r = run_case(client, case("write_file"))
     assert r["passed"] and r["error"] is None
@@ -21,18 +21,18 @@ def test_passing_case_and_cwd_restored():
 
 
 def test_failing_case():
-    r = run_case(FakeClient([([text("je ne fais rien")], "end_turn")]), case("write_file"))
+    r = run_case(FakeClient([reply("je ne fais rien")]), case("write_file"))
     assert not r["passed"]
 
 
 def test_answer_based_case():
-    r = run_case(FakeClient([([text("Le port est 8421.")], "end_turn")]), case("read_config"))
+    r = run_case(FakeClient([reply("Le port est 8421.")]), case("read_config"))
     assert r["passed"]
 
 
 def test_api_error_is_a_failed_case_not_a_crash():
     class Boom(FakeClient):
-        def stream(self, **kw):
+        def create(self, **kw):
             raise RuntimeError("panne")
 
     r = run_case(Boom([]), case("write_file"))

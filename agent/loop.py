@@ -1,10 +1,9 @@
-"""La boucle agentique : appeler Claude, exécuter les outils demandés, recommencer."""
+"""La boucle agentique : appeler le modèle, exécuter les outils demandés, recommencer."""
 import json
 from typing import Callable
 
-import anthropic
+from .config import MODEL
 
-MODEL = "claude-opus-5-5"
 SYSTEM = (
     "Tu es un agent de développement qui travaille dans le dossier courant. "
     "Utilise les outils pour explorer, lire, modifier des fichiers et lancer des commandes. "
@@ -12,15 +11,55 @@ SYSTEM = (
 )
 
 
-def run_tool(handlers: dict[str, Callable[..., str]], name: str, args: dict) -> tuple[str, bool]:
+def run_tool(handlers: dict[str, Callable[..., str]], name: str, args: dict) -> str:
+    if name not in handlers:
+        return f"Erreur : outil inconnu « {name} »."
     try:
-        return str(handlers[name](**args)), False
+        return str(handlers[name](**args))
     except Exception as e:  # renvoyée au modèle pour qu'il s'adapte
-        return f"Erreur : {e}", True
+        return f"Erreur : {e}"
+
+
+def _stream_reply(client, model: str, system: str, messages: list, tools: list, on_text) -> dict:
+    """Un appel en streaming ; reconstitue le message assistant (texte + appels d'outils)."""
+    stream = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "system", "content": system}, *messages],
+        tools=tools,
+        temperature=0.3,
+        stream=True,
+    )
+    parts: list[str] = []
+    calls: dict[int, dict] = {}
+    for chunk in stream:
+        if not chunk.choices:
+            continue
+        delta = chunk.choices[0].delta
+        if delta.content:
+            parts.append(delta.content)
+            on_text(delta.content)
+        for tc in delta.tool_calls or []:  # les appels arrivent en morceaux, indexés
+            c = calls.setdefault(tc.index, {"id": "", "name": "", "args": ""})
+            c["id"] = tc.id or c["id"]
+            if tc.function:
+                c["name"] += tc.function.name or ""
+                c["args"] += tc.function.arguments or ""
+    text = "".join(parts)
+    msg: dict = {"role": "assistant", "content": text or None}
+    if calls:
+        msg["tool_calls"] = [
+            {
+                "id": c["id"] or f"call_{i}",
+                "type": "function",
+                "function": {"name": c["name"], "arguments": c["args"] or "{}"},
+            }
+            for i, c in sorted(calls.items())
+        ]
+    return msg
 
 
 def run(
-    client: anthropic.Anthropic,
+    client,
     messages: list,
     tools: list,
     handlers: dict[str, Callable[..., str]],
@@ -30,42 +69,25 @@ def run(
     model: str = MODEL,
     max_turns: int = 30,
 ) -> str:
-    """Boucle jusqu'à ce que Claude réponde sans demander d'outil. Renvoie le dernier texte."""
+    """Boucle jusqu'à ce que le modèle réponde sans demander d'outil. Renvoie le dernier texte."""
     for _ in range(max_turns):
-        with client.messages.stream(
-            model=model,
-            max_tokens=16000,
-            system=system,
-            tools=tools,
-            thinking={"type": "adaptive"},
-            output_config={"effort": "medium"},
-            messages=messages,
-        ) as stream:
-            for text in stream.text_stream:
-                on_text(text)
-            response = stream.get_final_message()
-
-        # Contenu renvoyé tel quel (blocs de réflexion inclus).
-        messages.append({"role": "assistant", "content": response.content})
-
-        # Les outils serveur (web_search) tournent chez Anthropic ; un tour long peut être mis en
-        # pause : on renvoie simplement la conversation telle quelle pour qu'il reprenne.
-        if response.stop_reason == "pause_turn":
-            continue
-
-        if response.stop_reason != "tool_use":
-            return "".join(b.text for b in response.content if b.type == "text")
-
-        results = []
-        for block in response.content:
-            if block.type == "tool_use":
-                on_tool(block.name, block.input)
-                out, is_error = run_tool(handlers, block.name, block.input)
-                results.append(
-                    {"type": "tool_result", "tool_use_id": block.id, "content": out, "is_error": is_error}
-                )
-        # Tous les résultats dans UN seul message utilisateur.
-        messages.append({"role": "user", "content": results})
+        reply = _stream_reply(client, model, system, messages, tools, on_text)
+        messages.append(reply)
+        if "tool_calls" not in reply:
+            return reply["content"] or ""
+        for tc in reply["tool_calls"]:
+            name = tc["function"]["name"]
+            try:
+                args = json.loads(tc["function"]["arguments"])
+                if not isinstance(args, dict):
+                    raise ValueError
+            except ValueError:
+                out = "Erreur : les arguments de l'outil ne sont pas un objet JSON valide."
+                on_tool(name, {})
+            else:
+                on_tool(name, args)
+                out = run_tool(handlers, name, args)
+            messages.append({"role": "tool", "tool_call_id": tc["id"], "content": out})
     return "(arrêt : nombre maximal de tours atteint)"
 
 
