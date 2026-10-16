@@ -48,6 +48,11 @@ def run(
         # Contenu renvoyé tel quel (blocs de réflexion inclus).
         messages.append({"role": "assistant", "content": response.content})
 
+        # Les outils serveur (web_search) tournent chez Anthropic ; un tour long peut être mis en
+        # pause : on renvoie simplement la conversation telle quelle pour qu'il reprenne.
+        if response.stop_reason == "pause_turn":
+            continue
+
         if response.stop_reason != "tool_use":
             return "".join(b.text for b in response.content if b.type == "text")
 
