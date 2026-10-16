@@ -5,9 +5,8 @@ import tempfile
 import time
 from pathlib import Path
 
-import anthropic
-
-from agent.loop import MODEL, SYSTEM, run
+from agent.config import MODEL, make_client
+from agent.loop import SYSTEM, run
 from agent.memory import REMEMBER_TOOL, remember, system_with_memory
 from agent.tools import TOOLS, default_handlers
 
@@ -45,7 +44,7 @@ def main() -> None:
     parser.add_argument("--runs", type=int, default=1, help="répétitions par cas (le LLM est non déterministe)")
     args = parser.parse_args()
 
-    client = anthropic.Anthropic()
+    client = make_client()
     cases = [c for c in CASES if not args.k or args.k in c.name]
     total = passed = 0
     for case in cases:

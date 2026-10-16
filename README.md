@@ -1,13 +1,43 @@
 # agent
 
-Un agent LLM écrit à la main : une boucle autour de l'API Claude + des outils locaux.
+Un agent LLM écrit à la main : une boucle autour d'un modèle + des outils locaux.
+Il parle le protocole « OpenAI-compatible », donc il marche avec **Qwen/DeepSeek en local (gratuit, via Ollama)**
+comme avec n'importe quelle API (DeepSeek, OpenRouter, …).
+
+## Installation (gratuit, en local)
+
+1. Installer [Ollama](https://ollama.com/download) (Windows : `winget install Ollama.Ollama`).
+2. Télécharger un modèle qui gère les outils :
+   ```bash
+   ollama pull qwen3:8b       # ~5 Go ; qwen3:4b si peu de RAM, qwen3:14b ou qwen3-coder si GPU costaud
+   ```
+3. Installer et lancer l'agent :
+   ```bash
+   pip install -r requirements.txt
+   python -m agent            # nouvelle conversation
+   python -m agent --resume   # reprendre la dernière
+   ```
+
+## Changer de modèle / de fournisseur
+
+Trois variables d'environnement (valeurs par défaut : Ollama + `qwen3:8b`) :
+
+| Variable | Rôle | Défaut |
+|---|---|---|
+| `AGENT_BASE_URL` | adresse du serveur | `http://localhost:11434/v1` |
+| `AGENT_MODEL` | nom du modèle | `qwen3:8b` |
+| `AGENT_API_KEY` | clé API (ignorée par Ollama) | `ollama` |
+
+Exemples (PowerShell : `$env:NOM = "valeur"`, bash : `export NOM=valeur`) :
 
 ```bash
-pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...
-python -m agent            # nouvelle conversation
-python -m agent --resume   # reprendre la dernière
+# DeepSeek hébergé (payant mais très peu cher)
+AGENT_BASE_URL=https://api.deepseek.com AGENT_MODEL=deepseek-chat AGENT_API_KEY=sk-... python -m agent
+# OpenRouter
+AGENT_BASE_URL=https://openrouter.ai/api/v1 AGENT_MODEL=qwen/qwen3-coder AGENT_API_KEY=sk-or-... python -m agent
 ```
+
+Plus le modèle est gros, plus il utilise bien les outils : un petit modèle local se trompe plus souvent.
 
 ## Interface web
 
@@ -22,23 +52,30 @@ Chat en streaming dans le navigateur. `run_bash` y est désactivé (pas d'approb
 ```bash
 python -m evals                 # tous les cas, 1 passage chacun
 python -m evals --runs 3 -k bug # répéter un cas (le LLM est non déterministe)
+python -m evals --model qwen3:14b
 ```
 
-Chaque cas tourne dans un dossier temporaire, avec une vérification automatique (fichier créé, bug corrigé, réponse correcte…). Le bash y est toujours refusé. Les appels API sont réels (donc payants) : lance-les avant/après un changement de prompt ou d'outil pour savoir si ça aide.
+Chaque cas tourne dans un dossier temporaire, avec une vérification automatique (fichier créé, bug corrigé,
+réponse correcte…). Le bash y est toujours refusé. Utile pour comparer deux modèles ou deux prompts.
 
 ## Mémoire
 
 - L'outil `remember` ajoute des notes durables dans `.agent/memory.md`, relues au démarrage suivant (`/memoire` pour les afficher).
 - La conversation est sauvegardée dans `.agent/session.json` après chaque tour.
 
+## Outils
+
+`list_dir`, `read_file`, `write_file`, `run_bash` (avec approbation), `fetch_url` (page web),
+`remember`, `delegate` (sous-agent en lecture seule au contexte vierge).
+
 ## Structure
 
 - `agent/loop.py` : la boucle agentique (appel → outils → résultats → rappel)
-- `agent/tools.py` : outils locaux (`list_dir`, `read_file`, `write_file`, `run_bash` avec approbation)
+- `agent/config.py` : modèle, adresse, clé
+- `agent/tools.py` : outils locaux
 - `agent/memory.py` : notes durables + sauvegarde/reprise de session
-- `agent/websearch.py` : recherche web (outil serveur `web_search`, pause_turn géré par la boucle)
-- `agent/subagent.py` : outil `delegate` — un sous-agent en lecture seule, au contexte vierge, qui rend un compte rendu
+- `agent/subagent.py` : outil `delegate`
 - `agent/web.py` : interface web (FastAPI, SSE)
 - `agent/cli.py` : interface terminal
-- `evals/` : cas d'évaluation et runner (`python -m evals`)
+- `evals/` : cas d'évaluation et runner
 - `tests/` : tests unitaires avec un faux client (aucun appel réseau) — `pytest`

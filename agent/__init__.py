@@ -1,1 +1,1 @@
-"""Un agent LLM minimal : boucle Claude + outils."""
+"""Un agent LLM minimal : boucle LLM + outils."""

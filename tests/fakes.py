@@ -1,31 +1,30 @@
-"""Faux client Anthropic pour tester la boucle sans appel réseau."""
+"""Faux client OpenAI pour tester la boucle sans appel réseau."""
+import json
 from types import SimpleNamespace as NS
 
 
-def text(t):
-    return NS(type="text", text=t)
+def reply(text=None, *calls):
+    """Une réponse du modèle : du texte et/ou des appels d'outils."""
+    return (text, list(calls))
 
 
-def tool_use(id, name, **inp):
-    return NS(type="tool_use", id=id, name=name, input=inp)
+def call(id, name, **args):
+    return (id, name, json.dumps(args))
 
 
-class FakeStream:
-    def __init__(self, msg):
-        self.msg = msg
+def _chunk(content=None, tool_calls=None):
+    return NS(choices=[NS(delta=NS(content=content, tool_calls=tool_calls))])
 
-    def __enter__(self):
-        return self
 
-    def __exit__(self, *a):
-        return False
-
-    @property
-    def text_stream(self):
-        return (b.text for b in self.msg.content if b.type == "text")
-
-    def get_final_message(self):
-        return self.msg
+def _stream(text, calls):
+    if text:
+        mid = len(text) // 2
+        yield _chunk(content=text[:mid])
+        yield _chunk(content=text[mid:])
+    for i, (id, name, args) in enumerate(calls):
+        mid = len(args) // 2  # les arguments arrivent en deux morceaux, comme sur un vrai flux
+        yield _chunk(tool_calls=[NS(index=i, id=id, function=NS(name=name, arguments=args[:mid]))])
+        yield _chunk(tool_calls=[NS(index=i, id=None, function=NS(name=None, arguments=args[mid:]))])
 
 
 class FakeClient:
@@ -34,9 +33,9 @@ class FakeClient:
     def __init__(self, replies):
         self.replies = list(replies)
         self.calls = []
-        self.messages = self
+        self.chat = NS(completions=self)
 
-    def stream(self, **kw):
+    def create(self, **kw):
+        kw["messages"] = list(kw["messages"])  # instantané : la boucle modifie la liste ensuite
         self.calls.append(kw)
-        content, stop = self.replies.pop(0)
-        return FakeStream(NS(content=content, stop_reason=stop))
+        return _stream(*self.replies.pop(0))

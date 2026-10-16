@@ -1,5 +1,3 @@
-from anthropic.types import TextBlock, ToolUseBlock
-
 from agent.memory import load_notes, load_session, remember, save_session, system_with_memory
 
 
@@ -11,21 +9,16 @@ def test_notes_roundtrip_and_system_prompt(tmp_path):
     assert "Mémoire" in system_with_memory("base", notes)
 
 
-def test_session_roundtrip_with_sdk_blocks(tmp_path):
+def test_session_roundtrip(tmp_path):
     path = tmp_path / "s.json"
     messages = [
         {"role": "user", "content": "salut"},
-        {"role": "assistant", "content": [
-            TextBlock(type="text", text="je regarde", citations=None),
-            ToolUseBlock(type="tool_use", id="t1", name="list_dir", input={"path": "."}),
-        ]},
-        {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "a"}]},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "t1", "type": "function", "function": {"name": "list_dir", "arguments": "{}"}}]},
+        {"role": "tool", "tool_call_id": "t1", "content": "a"},
     ]
     save_session(messages, path)
-    loaded = load_session(path)
-    assert loaded[0] == messages[0]
-    assert loaded[1]["content"][1] == {"type": "tool_use", "id": "t1", "name": "list_dir", "input": {"path": "."}}
-    assert loaded[2] == messages[2]
+    assert load_session(path) == messages
 
 
 def test_load_missing_session(tmp_path):

@@ -4,16 +4,16 @@ import queue
 import threading
 import uuid
 
-import anthropic
+import openai
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
+from .config import make_client
 from .loop import SYSTEM, fmt_args, run
 from .memory import REMEMBER_TOOL, remember, system_with_memory
 from .subagent import DELEGATE_TOOL, make_delegate
 from .tools import TOOLS, default_handlers
-from .websearch import WEB_SEARCH_TOOL
 
 PAGE = """<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Agent</title>
@@ -49,13 +49,13 @@ class ChatIn(BaseModel):
     message: str
 
 
-def create_app(client: anthropic.Anthropic | None = None) -> FastAPI:
+def create_app(client=None) -> FastAPI:
     app = FastAPI(title="Agent")
     sessions: dict[str, list] = {}
     state = {"client": client}
 
-    def get_client() -> anthropic.Anthropic:
-        state["client"] = state["client"] or anthropic.Anthropic()
+    def get_client():
+        state["client"] = state["client"] or make_client()
         return state["client"]
 
     @app.get("/", response_class=HTMLResponse)
@@ -65,6 +65,7 @@ def create_app(client: anthropic.Anthropic | None = None) -> FastAPI:
     @app.post("/chat")
     def chat(body: ChatIn):
         messages = sessions.setdefault(body.session_id or str(uuid.uuid4()), [])
+        start = len(messages)
         messages.append({"role": "user", "content": body.message})
         events: queue.Queue = queue.Queue()
         c = get_client()
@@ -82,13 +83,13 @@ def create_app(client: anthropic.Anthropic | None = None) -> FastAPI:
         def worker() -> None:
             try:
                 run(
-                    c, messages, [*TOOLS, REMEMBER_TOOL, WEB_SEARCH_TOOL, DELEGATE_TOOL], handlers,
+                    c, messages, [*TOOLS, REMEMBER_TOOL, DELEGATE_TOOL], handlers,
                     system=system_with_memory(SYSTEM),
                     on_text=lambda t: events.put({"type": "text", "text": t}),
                     on_tool=on_tool,
                 )
-            except anthropic.APIError as e:
-                messages.pop()
+            except openai.OpenAIError as e:
+                del messages[start:]
                 events.put({"type": "error", "message": str(e)})
             finally:
                 events.put(None)

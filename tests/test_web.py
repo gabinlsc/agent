@@ -3,7 +3,7 @@ import json
 from fastapi.testclient import TestClient
 
 from agent.web import create_app
-from tests.fakes import FakeClient, text, tool_use
+from tests.fakes import FakeClient, call, reply
 
 
 def events(resp):
@@ -11,29 +11,25 @@ def events(resp):
 
 
 def test_chat_streams_text_and_tool_events():
-    fake = FakeClient([
-        ([tool_use("t1", "list_dir", path=".")], "tool_use"),
-        ([text("voilà")], "end_turn"),
-    ])
+    fake = FakeClient([reply(None, call("t1", "list_dir", path=".")), reply("voilà")])
     http = TestClient(create_app(fake))
-    r = http.post("/chat", json={"session_id": "s", "message": "liste"})
-    evs = events(r)
-    assert [e["type"] for e in evs] == ["tool", "text"]
-    assert evs[1]["text"] == "voilà"
+    evs = events(http.post("/chat", json={"session_id": "s", "message": "liste"}))
+    assert evs[0]["type"] == "tool" and evs[0]["name"] == "list_dir"
+    assert "".join(e["text"] for e in evs if e["type"] == "text") == "voilà"
 
 
 def test_history_kept_per_session_and_bash_refused():
     fake = FakeClient([
-        ([tool_use("t1", "run_bash", command="echo hi")], "tool_use"),
-        ([text("ok")], "end_turn"),
-        ([text("encore")], "end_turn"),
+        reply(None, call("t1", "run_bash", command="echo hi")),
+        reply("ok"),
+        reply("encore"),
     ])
     http = TestClient(create_app(fake))
     http.post("/chat", json={"session_id": "s", "message": "bash"})
-    results = fake.calls[1]["messages"][2]["content"][0]["content"]
-    assert results == "Refusé par l'utilisateur."
+    tool_msg = next(m for m in fake.calls[1]["messages"] if m["role"] == "tool")
+    assert tool_msg["content"] == "Refusé par l'utilisateur."
     http.post("/chat", json={"session_id": "s", "message": "suite"})
-    assert len(fake.calls[2]["messages"]) >= 5  # l'historique de la session est conservé
+    assert len(fake.calls[2]["messages"]) >= 6  # system + historique de la session conservé
 
 
 def test_index_page():
