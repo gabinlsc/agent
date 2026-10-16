@@ -21,7 +21,7 @@ def test_loop_executes_tool_then_answers(tmp_path):
 def test_system_prompt_is_sent_first_but_not_stored():
     client = FakeClient([reply("ok")])
     messages = [{"role": "user", "content": "x"}]
-    run(client, messages, TOOLS, H(), system="SYS")
+    run(client, messages, TOOLS, H(), system="SYS", model="deepseek-chat")
     assert client.calls[0]["messages"][0] == {"role": "system", "content": "SYS"}
     assert all(m["role"] != "system" for m in messages)
 
@@ -60,3 +60,12 @@ def test_max_turns_guard():
     client = FakeClient([reply(None, call(f"t{i}", "list_dir")) for i in range(3)])
     out = run(client, [{"role": "user", "content": "x"}], TOOLS, H(), max_turns=3)
     assert "maximal" in out
+
+
+def test_qwen3_thinking_disabled_by_default():
+    from agent.config import system_for
+
+    assert system_for("qwen3:8b", "SYS", thinking=False).endswith("/no_think")
+    assert system_for("qwen3:8b", "SYS", thinking=True) == "SYS"
+    assert system_for("deepseek-chat", "SYS", thinking=False) == "SYS"
+    assert system_for("qwen2.5:7b", "SYS", thinking=False) == "SYS"

@@ -37,6 +37,15 @@ AGENT_BASE_URL=https://api.deepseek.com AGENT_MODEL=deepseek-chat AGENT_API_KEY=
 AGENT_BASE_URL=https://openrouter.ai/api/v1 AGENT_MODEL=qwen/qwen3-coder AGENT_API_KEY=sk-or-... python -m agent
 ```
 
+`AGENT_THINKING=1` réactive le mode réflexion de Qwen3 (plus malin, mais bien plus lent ; désactivé par défaut).
+
+## Si c'est lent
+
+1. `ollama ps` : la colonne PROCESSOR doit afficher du GPU ; « 100% CPU » = lent par nature.
+2. Prends un modèle plus petit : `ollama pull qwen3:4b` puis `AGENT_MODEL=qwen3:4b`.
+3. Ou un modèle sans mode réflexion : `qwen2.5:7b` / `qwen2.5-coder:7b`.
+4. Ou une API hébergée (DeepSeek : quelques centimes, quasi instantané).
+
 Plus le modèle est gros, plus il utilise bien les outils : un petit modèle local se trompe plus souvent.
 
 ## Interface web

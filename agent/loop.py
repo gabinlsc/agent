@@ -2,7 +2,7 @@
 import json
 from typing import Callable
 
-from .config import MODEL
+from .config import MODEL, system_for
 
 SYSTEM = (
     "Tu es un agent de développement qui travaille dans le dossier courant. "
@@ -24,7 +24,7 @@ def _stream_reply(client, model: str, system: str, messages: list, tools: list, 
     """Un appel en streaming ; reconstitue le message assistant (texte + appels d'outils)."""
     stream = client.chat.completions.create(
         model=model,
-        messages=[{"role": "system", "content": system}, *messages],
+        messages=[{"role": "system", "content": system_for(model, system)}, *messages],
         tools=tools,
         temperature=0.3,
         stream=True,
