@@ -13,22 +13,22 @@ class Case:
 
 
 def _setup_config(d: Path) -> None:
-    (d / "config.json").write_text('{"name": "demo", "server": {"port": 8421}}')
+    (d / "config.json").write_text('{"name": "demo", "server": {"port": 8421}}', encoding="utf-8")
 
 
 def _setup_pyfiles(d: Path) -> None:
     for n in ("a.py", "b.py", "c.py"):
-        (d / n).write_text("pass\n")
-    (d / "notes.txt").write_text("x\n")
+        (d / n).write_text("pass\n", encoding="utf-8")
+    (d / "notes.txt").write_text("x\n", encoding="utf-8")
 
 
 def _setup_bug(d: Path) -> None:
-    (d / "calc.py").write_text("def add(a, b):\n    return a - b\n")
+    (d / "calc.py").write_text("def add(a, b):\n    return a - b\n", encoding="utf-8")
 
 
 def _fixed(d: Path, answer: str) -> bool:
     ns: dict = {}
-    exec((d / "calc.py").read_text(), ns)
+    exec((d / "calc.py").read_text(encoding="utf-8"), ns)
     return ns["add"](2, 3) == 5
 
 
@@ -36,7 +36,7 @@ CASES = [
     Case(
         "write_file",
         "Crée un fichier hello.txt contenant exactement : bonjour",
-        lambda d, a: (d / "hello.txt").exists() and (d / "hello.txt").read_text().strip() == "bonjour",
+        lambda d, a: (d / "hello.txt").exists() and (d / "hello.txt").read_text(encoding="utf-8").strip() == "bonjour",
     ),
     Case(
         "read_config",
@@ -54,7 +54,7 @@ CASES = [
     Case(
         "remember",
         "Retiens que je m'appelle Gabin et que je préfère les réponses courtes.",
-        lambda d, a: "gabin" in (d / ".agent" / "memory.md").read_text().lower()
+        lambda d, a: "gabin" in (d / ".agent" / "memory.md").read_text(encoding="utf-8").lower()
         if (d / ".agent" / "memory.md").exists()
         else False,
     ),

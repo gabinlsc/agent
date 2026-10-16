@@ -16,6 +16,8 @@ def approve_in_terminal(command: str) -> bool:
 
 
 def main() -> None:
+    for stream in (sys.stdout, sys.stderr):  # consoles Windows en cp1252 : ne jamais planter sur un emoji
+        stream.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(prog="agent")
     parser.add_argument("--resume", action="store_true", help="reprendre la dernière conversation")
     args = parser.parse_args()
