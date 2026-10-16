@@ -7,6 +7,7 @@ import anthropic
 from .loop import MODEL, SYSTEM, fmt_args, run
 from .memory import REMEMBER_TOOL, load_notes, load_session, remember, save_session, system_with_memory
 from .tools import TOOLS, default_handlers
+from .websearch import WEB_SEARCH_TOOL
 
 
 def approve_in_terminal(command: str) -> bool:
@@ -20,7 +21,7 @@ def main() -> None:
 
     client = anthropic.Anthropic()  # lit ANTHROPIC_API_KEY
     handlers = {**default_handlers(approve_in_terminal), "remember": remember}
-    tools = [*TOOLS, REMEMBER_TOOL]
+    tools = [*TOOLS, REMEMBER_TOOL, WEB_SEARCH_TOOL]
     system = system_with_memory(SYSTEM)
     messages: list = load_session() if args.resume else []
     print(f"Agent prêt ({MODEL}). 'exit' pour quitter, '/memoire' pour voir les notes.\n")
