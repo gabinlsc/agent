@@ -37,3 +37,14 @@ def test_max_turns_guard():
     client = FakeClient([([tool_use(f"t{i}", "list_dir")], "tool_use") for i in range(3)])
     out = run(client, [{"role": "user", "content": "x"}], TOOLS, default_handlers(lambda c: False), max_turns=3)
     assert "maximal" in out
+
+
+def test_pause_turn_resumes_without_tool_results():
+    from types import SimpleNamespace as NS
+    srv = NS(type="server_tool_use", id="s1", name="web_search", input={"query": "x"})
+    client = FakeClient([([srv], "pause_turn"), ([text("réponse")], "end_turn")])
+    messages = [{"role": "user", "content": "cherche"}]
+    out = run(client, messages, TOOLS, default_handlers(lambda c: False))
+    assert out == "réponse"
+    # le tour en pause est renvoyé tel quel, sans message user intercalé
+    assert [m["role"] for m in messages] == ["user", "assistant", "assistant"]

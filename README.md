@@ -19,5 +19,6 @@ python -m agent --resume   # reprendre la dernière
 - `agent/loop.py` : la boucle agentique (appel → outils → résultats → rappel)
 - `agent/tools.py` : outils locaux (`list_dir`, `read_file`, `write_file`, `run_bash` avec approbation)
 - `agent/memory.py` : notes durables + sauvegarde/reprise de session
+- `agent/websearch.py` : recherche web (outil serveur `web_search`, pause_turn géré par la boucle)
 - `agent/cli.py` : interface terminal
 - `tests/` : tests unitaires avec un faux client (aucun appel réseau) — `pytest`
